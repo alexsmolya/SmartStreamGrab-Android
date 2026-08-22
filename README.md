@@ -1,6 +1,6 @@
-# SmartStreamGrab Android — Phase 1 backend/format slice
+# SmartStreamGrab Android — Phase 2 preview/download handoff slice
 
-The first production slice after feasibility for the flow `Share → extract → preview`. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, then calls `youtubedl-android` through a small typed metadata boundary. It does not download or persist anything.
+This bounded production slice extends `Share → extract → preview` with an explicit typed `preview → selected format → download handoff` state boundary. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, then calls `youtubedl-android` through a small typed metadata boundary. It prepares a request for a future executor but does not download or persist anything.
 
 ## Backend decision
 
@@ -29,4 +29,4 @@ Static manifest/source review: `STATICALLY_REASONED` (share target, bounded erro
 
 ## Current phase boundary
 
-No downloads, queue, history, cookies/login, browser automation, background work, transcoding, persistence, Media3 playback, or polished navigation. The next human-approved slice may add explicit preview/download handoff and lifecycle tests; it is not included here.
+The `PreviewDownloadController` owns deterministic format selection and creates `DownloadRequest` only for a valid selected format and HTTP(S) source. No downloads, queue, history, cookies/login, browser automation, background work, transcoding, persistence, Media3 playback, or polished navigation are included. The next human-approved slice may add the real download executor around this request boundary.

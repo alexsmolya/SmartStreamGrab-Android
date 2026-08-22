@@ -37,6 +37,9 @@ class MainActivity : ComponentActivity() {
     private val preview = mutableStateOf<MediaPreview?>(null)
     private val error = mutableStateOf<String?>(null)
     private val loading = mutableStateOf(false)
+    private val session = mutableStateOf<PreviewDownloadState>(PreviewDownloadState.Idle)
+    private val downloadHandoff = mutableStateOf<DownloadRequest?>(null)
+    private val handoffController = PreviewDownloadController()
     private val extractor = YtDlpMetadataExtractor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,7 +61,16 @@ class MainActivity : ComponentActivity() {
     private fun acceptIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
-        if (text.isNotEmpty()) sharedUrl.value = text
+        if (text.isNotEmpty()) updateInput(text)
+    }
+
+    private fun updateInput(value: String) {
+        sharedUrl.value = value
+        handoffController.updateInput(value)
+        session.value = handoffController.state
+        preview.value = null
+        error.value = null
+        downloadHandoff.value = null
     }
 
     private fun extract() {
@@ -66,23 +78,44 @@ class MainActivity : ComponentActivity() {
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             error.value = "Enter an http(s) URL."
             preview.value = null
+            handoffController.showError(url, error.value!!)
+            session.value = handoffController.state
+            downloadHandoff.value = null
             return
         }
         loading.value = true
         error.value = null
+        handoffController.beginExtraction(url)
+        session.value = handoffController.state
+        downloadHandoff.value = null
         lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
                     extractor.extract(url)
                 }
                 preview.value = result
+                handoffController.showPreview(result)
+                session.value = handoffController.state
             } catch (e: Exception) {
                 preview.value = null
                 error.value = "Could not extract media: ${e.message ?: e.javaClass.simpleName}"
+                handoffController.showError(url, error.value!!)
+                session.value = handoffController.state
             } finally {
                 loading.value = false
             }
         }
+    }
+
+    private fun selectFormat(formatId: String) {
+        if (handoffController.selectFormat(formatId)) {
+            session.value = handoffController.state
+            downloadHandoff.value = null
+        }
+    }
+
+    private fun prepareDownload() {
+        downloadHandoff.value = handoffController.createDownloadRequest()
     }
 
     @androidx.compose.runtime.Composable
@@ -91,15 +124,17 @@ class MainActivity : ComponentActivity() {
         val currentPreview by preview
         val currentError by error
         val isLoading by loading
+        val currentSession by session
+        val currentHandoff by downloadHandoff
         MaterialTheme {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Text("SmartStreamGrab", style = MaterialTheme.typography.headlineSmall) }
-                item { Text("Phase 0 media extraction preview") }
+                item { Text("Metadata preview and download handoff") }
                 item {
-                    OutlinedTextField(input, { input = it }, Modifier.fillMaxWidth(), label = { Text("URL") })
+                    OutlinedTextField(input, ::updateInput, Modifier.fillMaxWidth(), label = { Text("URL") })
                 }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -117,6 +152,21 @@ class MainActivity : ComponentActivity() {
                     item { AsyncImage(model = item.thumbnail, contentDescription = "Thumbnail", modifier = Modifier.fillMaxWidth().height(190.dp)) }
                     item { Text("Resolved media/formats (${item.formats.size})", style = MaterialTheme.typography.titleMedium) }
                     items(item.formats) { format -> Text(format.displayLabel()) }
+                    items(item.formats) { format ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(if ((currentSession as? PreviewDownloadState.Ready)?.selectedFormatId == format.formatId) "Selected" else "")
+                            Button(onClick = { selectFormat(format.formatId) }) { Text("Select ${format.formatId}") }
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = ::prepareDownload,
+                            enabled = (currentSession as? PreviewDownloadState.Ready)?.selectedFormatId != null,
+                        ) { Text("Prepare download handoff") }
+                    }
+                    if (currentHandoff != null) item {
+                        Text("Download handoff ready for ${currentHandoff!!.format.formatId}; no file download is performed.")
+                    }
                 }
                 item { Spacer(Modifier.height(24.dp)); Text("No download or persistence is performed in this spike.") }
             }
