@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,19 +32,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class Preview(
-    val url: String,
-    val title: String,
-    val thumbnail: String?,
-    val extractor: String,
-    val formats: List<String>,
-)
-
 class MainActivity : ComponentActivity() {
     private val sharedUrl = mutableStateOf("")
-    private val preview = mutableStateOf<Preview?>(null)
+    private val preview = mutableStateOf<MediaPreview?>(null)
     private val error = mutableStateOf<String?>(null)
     private val loading = mutableStateOf(false)
+    private val extractor = YtDlpMetadataExtractor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,8 +73,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val info = YoutubeDL.getInstance().getInfo(url)
-                    Preview(url, info.title(), info.thumbnail(), info.extractor(), info.formats())
+                    extractor.extract(url)
                 }
                 preview.value = result
             } catch (e: Exception) {
@@ -95,24 +85,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun Any.call(vararg names: String): Any? = names.firstNotNullOfOrNull { name ->
-        runCatching { javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }?.invoke(this) }.getOrNull()
-    }
-
-    private fun Any.title() = call("getTitle")?.toString()?.ifBlank { "(untitled)" } ?: "(untitled)"
-    private fun Any.thumbnail() = call("getThumbnail", "getThumbnailUrl")?.toString()?.takeIf { it.startsWith("http") }
-    private fun Any.extractor() = call("getExtractorKey", "getExtractor")?.toString() ?: "unknown"
-    private fun Any.formats(): List<String> {
-        val raw = call("getFormats") as? Iterable<*> ?: return listOf("Resolved media (format list unavailable)")
-        return raw.take(12).map { it.toString() }.ifEmpty { listOf("Resolved media (no format rows)") }
-    }
-
     @androidx.compose.runtime.Composable
     private fun PreviewScreen() {
-        var input by remember { sharedUrl }
-        val currentPreview by remember { preview }
-        val currentError by remember { error }
-        val isLoading by remember { loading }
+        var input by sharedUrl
+        val currentPreview by preview
+        val currentError by error
+        val isLoading by loading
         MaterialTheme {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -138,7 +116,7 @@ class MainActivity : ComponentActivity() {
                     item { Text("Extractor/site: ${item.extractor}") }
                     item { AsyncImage(model = item.thumbnail, contentDescription = "Thumbnail", modifier = Modifier.fillMaxWidth().height(190.dp)) }
                     item { Text("Resolved media/formats (${item.formats.size})", style = MaterialTheme.typography.titleMedium) }
-                    items(item.formats) { format -> Text(format) }
+                    items(item.formats) { format -> Text(format.displayLabel()) }
                 }
                 item { Spacer(Modifier.height(24.dp)); Text("No download or persistence is performed in this spike.") }
             }

@@ -1,12 +1,14 @@
-# SmartStreamGrab Android — Phase 0
+# SmartStreamGrab Android — Phase 1 backend/format slice
 
-Minimal Compose feasibility spike for the flow `Share → extract → preview`. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, then calls `youtubedl-android` to resolve yt-dlp metadata and media formats. It does not download or persist anything.
+The first production slice after feasibility for the flow `Share → extract → preview`. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, then calls `youtubedl-android` through a small typed metadata boundary. It does not download or persist anything.
 
 ## Backend decision
 
 Selected `youtubedl-android:0.18.1`. Its upstream documentation provides a Maven AAR, `YoutubeDL.getInfo`, bundled yt-dlp/Python runtime, arm64 guidance, and an in-app yt-dlp update mechanism. The optional FFmpeg AAR is intentionally not included because this phase only resolves metadata/formats.
 
-Rejected for this spike: the current `ffmpegkit-maintained/yt-dlp-android` Chaquopy/AAR integration. Its public documentation is promising and explicitly supports arm64, but it embeds roughly 60–80 MB of CPython, fixes yt-dlp at library build time, and had not been independently build/runtime verified in this workspace. Revisit it in Phase 1 if its packaging and update trade-offs become preferable.
+Rejected for this spike: the current `ffmpegkit-maintained/yt-dlp-android` Chaquopy/AAR integration. Its public documentation is promising and explicitly supports arm64, but it embeds roughly 60–80 MB of CPython, fixes yt-dlp at library build time, and had not been independently build/runtime verified in this workspace. Revisit it later if its packaging and update trade-offs become preferable.
+
+The backend dependency remains pinned at `0.18.1` for reproducible builds. Updating yt-dlp is an intentional dependency/version change, not an implicit runtime mutation. The adapter converts the AAR metadata objects into `MediaPreview` and `MediaFormat`, preserving format id, extension, dimensions, codecs, size, and playable URL when exposed by the backend.
 
 ## Build and run
 
@@ -25,6 +27,6 @@ The selected native payload is constrained to `arm64-v8a` and `x86_64`.
 
 Static manifest/source review: `STATICALLY_REASONED` (share target, bounded error state, background extraction, and ABI filters are present). Build and emulator validation depend on the local Android/JDK toolchain; record exact results in the handoff report. No physical Galaxy S24 is required.
 
-## Limitations / Phase 1 boundary
+## Current phase boundary
 
-No downloads, queue, history, cookies/login, browser automation, background work, transcoding, persistence, or polished navigation. Phase 1 should first harden backend version/update policy and format modeling, then add explicit preview/download handoff and lifecycle tests.
+No downloads, queue, history, cookies/login, browser automation, background work, transcoding, persistence, Media3 playback, or polished navigation. The next human-approved slice may add explicit preview/download handoff and lifecycle tests; it is not included here.
