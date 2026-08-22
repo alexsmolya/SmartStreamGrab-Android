@@ -1,6 +1,6 @@
-# SmartStreamGrab Android — Phase 2 preview/download handoff slice
+# SmartStreamGrab Android — Phase 3 download executor slice
 
-This bounded production slice extends `Share → extract → preview` with an explicit typed `preview → selected format → download handoff` state boundary. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, then calls `youtubedl-android` through a small typed metadata boundary. It prepares a request for a future executor but does not download or persist anything.
+This bounded production slice extends `Share → extract → preview` with an explicit typed `preview → selected format → download` path. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, calls `youtubedl-android` through narrow typed boundaries, and writes completed media through Android's Downloads provider on modern Android.
 
 ## Backend decision
 
@@ -27,6 +27,12 @@ The selected native payload is constrained to `arm64-v8a` and `x86_64`.
 
 Static manifest/source review: `STATICALLY_REASONED` (share target, bounded error state, background extraction, and ABI filters are present). Build and emulator validation depend on the local Android/JDK toolchain; record exact results in the handoff report. No physical Galaxy S24 is required.
 
+## Download implementation
+
+`DownloadExecutor` validates the existing `DownloadRequest`, passes its selected format ID to `youtubedl-android`, reports bounded progress, and publishes the completed file through `MediaStore.Downloads` with `IS_PENDING` on Android 10+. On API 24–28 it uses the app-specific external Downloads directory to avoid obsolete broad storage permissions. Filenames are sanitized and each temporary execution uses a unique directory; pre-29 destination collisions receive a deterministic numeric suffix.
+
+`DownloadExecutionController` models prepared, running, succeeded, and bounded failed states. It rejects duplicate starts and stale/reset requests. The backend adapter remains isolated from Compose state, and no queue or background orchestration is introduced.
+
 ## Current phase boundary
 
-The `PreviewDownloadController` owns deterministic format selection and creates `DownloadRequest` only for a valid selected format and HTTP(S) source. No downloads, queue, history, cookies/login, browser automation, background work, transcoding, persistence, Media3 playback, or polished navigation are included. The next human-approved slice may add the real download executor around this request boundary.
+The download executor is synchronous from the application boundary and is launched on `Dispatchers.IO`; no queue or persistent history is added. Cookies/login, browser automation, WorkManager/background orchestration, playlist/batch download, transcoding, Media3 playback, polished navigation, and broad settings remain out of scope. Android runtime validation still requires a usable device or emulator.

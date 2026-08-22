@@ -39,8 +39,14 @@ class MainActivity : ComponentActivity() {
     private val loading = mutableStateOf(false)
     private val session = mutableStateOf<PreviewDownloadState>(PreviewDownloadState.Idle)
     private val downloadHandoff = mutableStateOf<DownloadRequest?>(null)
+    private val downloadState = mutableStateOf<DownloadExecutionState>(DownloadExecutionState.Idle)
     private val handoffController = PreviewDownloadController()
     private val extractor = YtDlpMetadataExtractor()
+    private val downloadExecutionController by lazy {
+        DownloadExecutionController(
+            DownloadExecutor(YtDlpDownloadBackend(), AndroidDownloadStorage(this)),
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +77,8 @@ class MainActivity : ComponentActivity() {
         preview.value = null
         error.value = null
         downloadHandoff.value = null
+        downloadExecutionController.reset()
+        downloadState.value = downloadExecutionController.state
     }
 
     private fun extract() {
@@ -81,6 +89,8 @@ class MainActivity : ComponentActivity() {
             handoffController.showError(url, error.value!!)
             session.value = handoffController.state
             downloadHandoff.value = null
+            downloadExecutionController.reset()
+            downloadState.value = downloadExecutionController.state
             return
         }
         loading.value = true
@@ -88,6 +98,8 @@ class MainActivity : ComponentActivity() {
         handoffController.beginExtraction(url)
         session.value = handoffController.state
         downloadHandoff.value = null
+        downloadExecutionController.reset()
+        downloadState.value = downloadExecutionController.state
         lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
@@ -96,11 +108,14 @@ class MainActivity : ComponentActivity() {
                 preview.value = result
                 handoffController.showPreview(result)
                 session.value = handoffController.state
+                downloadState.value = DownloadExecutionState.Idle
             } catch (e: Exception) {
                 preview.value = null
                 error.value = "Could not extract media: ${e.message ?: e.javaClass.simpleName}"
                 handoffController.showError(url, error.value!!)
                 session.value = handoffController.state
+                downloadExecutionController.reset()
+                downloadState.value = downloadExecutionController.state
             } finally {
                 loading.value = false
             }
@@ -114,8 +129,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun prepareDownload() {
-        downloadHandoff.value = handoffController.createDownloadRequest()
+    private fun startDownload() {
+        val request = handoffController.createDownloadRequest() ?: return
+        if (!downloadExecutionController.prepare(request) || !downloadExecutionController.start()) return
+        downloadHandoff.value = request
+        downloadState.value = downloadExecutionController.state
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                downloadExecutionController.executeStarted()
+            }
+            downloadState.value = result
+        }
     }
 
     @androidx.compose.runtime.Composable
@@ -126,6 +150,7 @@ class MainActivity : ComponentActivity() {
         val isLoading by loading
         val currentSession by session
         val currentHandoff by downloadHandoff
+        val currentDownloadState by downloadState
         MaterialTheme {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -160,15 +185,28 @@ class MainActivity : ComponentActivity() {
                     }
                     item {
                         Button(
-                            onClick = ::prepareDownload,
-                            enabled = (currentSession as? PreviewDownloadState.Ready)?.selectedFormatId != null,
-                        ) { Text("Prepare download handoff") }
+                            onClick = ::startDownload,
+                            enabled = (currentSession as? PreviewDownloadState.Ready)?.selectedFormatId != null &&
+                                currentDownloadState !is DownloadExecutionState.Running,
+                        ) { Text("Download") }
                     }
-                    if (currentHandoff != null) item {
-                        Text("Download handoff ready for ${currentHandoff!!.format.formatId}; no file download is performed.")
+                    if (currentHandoff != null && currentDownloadState is DownloadExecutionState.Prepared) item {
+                        Text("Download prepared for ${currentHandoff!!.format.formatId}.")
+                    }
+                    if (currentDownloadState is DownloadExecutionState.Running) item {
+                        Text("Downloading: ${(currentDownloadState as DownloadExecutionState.Running).progress.fraction * 100}%")
+                    }
+                    if (currentDownloadState is DownloadExecutionState.Succeeded) item {
+                        Text("Downloaded to ${(currentDownloadState as DownloadExecutionState.Succeeded).output.location}")
+                    }
+                    if (currentDownloadState is DownloadExecutionState.Failed) item {
+                        Text(
+                            "Download failed: ${(currentDownloadState as DownloadExecutionState.Failed).message}",
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
-                item { Spacer(Modifier.height(24.dp)); Text("No download or persistence is performed in this spike.") }
+                item { Spacer(Modifier.height(24.dp)); Text("Downloads use the Android Downloads provider when available.") }
             }
         }
     }

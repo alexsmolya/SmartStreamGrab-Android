@@ -74,7 +74,8 @@ class PreviewDownloadController {
     }
 }
 
-private fun MediaFormat.isDownloadSelectable(): Boolean =
-    formatId.isNotBlank() && formatId != "unknown" && formatId != "resolved"
+internal fun MediaFormat.isDownloadSelectable(): Boolean =
+    formatId.isNotBlank() && formatId != "unknown" && formatId != "resolved" &&
+        formatId.none { it.isISOControl() || it == '/' || it == '\\' }
 
-private fun String.isHttpUrl(): Boolean = startsWith("http://") || startsWith("https://")
+internal fun String.isHttpUrl(): Boolean = startsWith("http://") || startsWith("https://")
