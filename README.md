@@ -25,7 +25,21 @@ The selected native payload is constrained to `arm64-v8a` and `x86_64`.
 
 ## Validation status
 
-Static manifest/source review: `STATICALLY_REASONED` (share target, bounded error state, background extraction, and ABI filters are present). Build and emulator validation depend on the local Android/JDK toolchain; record exact results in the handoff report. No physical Galaxy S24 is required.
+Build and unit/lint validation are recorded in the Phase 3 handoff. The primary download flow has now also been `EMPIRICALLY_TESTED` on a real Android phone; this does not claim validation of every Android API-level fallback or cancellation path.
+
+### Physical-device runtime validation
+
+`EMPIRICALLY_TESTED` on 2026-08-22 using a real Android phone:
+
+- Debug APK installed and launched successfully.
+- Shared TikTok URL: `https://vt.tiktok.com/ZSVPxEakR/`.
+- yt-dlp metadata extraction succeeded; TikTok title, site, and thumbnail rendered.
+- Eight resolved media formats were returned and a concrete format was selected.
+- Download completed successfully through the Phase 3 yt-dlp executor.
+- Result was published through Android Downloads/MediaStore.
+- The UI reported `content://media/external/downloads/1000048094`.
+
+The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage. A non-blocking UI defect was observed but intentionally not fixed in this phase: format rows expose Java object strings such as `com.yausername.youtubedl_android.mapper.VideoFormat@...` instead of a polished format label.
 
 ## Download implementation
 
@@ -35,4 +49,4 @@ Static manifest/source review: `STATICALLY_REASONED` (share target, bounded erro
 
 ## Current phase boundary
 
-The download executor is synchronous from the application boundary and is launched on `Dispatchers.IO`; no queue or persistent history is added. Cookies/login, browser automation, WorkManager/background orchestration, playlist/batch download, transcoding, Media3 playback, polished navigation, and broad settings remain out of scope. Android runtime validation still requires a usable device or emulator.
+The download executor is synchronous from the application boundary and is launched on `Dispatchers.IO`; no queue or persistent history is added. Cookies/login, browser automation, WorkManager/background orchestration, playlist/batch download, transcoding, Media3 playback, polished navigation, and broad settings remain out of scope. The primary Phase 3 download path is physically validated; the unverified cases above remain outside the evidence claim.
