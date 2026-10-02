@@ -20,14 +20,30 @@ data class MediaFormat(
     val playableUrl: String?,
     val fallbackLabel: String? = null,
 ) {
-    fun displayLabel(): String = listOfNotNull(
-        formatId,
-        extension,
-        if (width != null && height != null) "${width}x$height" else null,
-        listOfNotNull(videoCodec, audioCodec).joinToString("/").ifBlank { null },
-        fallbackLabel,
-    ).joinToString(" · ")
+    /** A short label suitable for a download button; backend IDs and codec internals stay hidden. */
+    fun displayLabel(): String {
+        val type = extension
+            ?.trim()
+            ?.removePrefix(".")
+            ?.takeIf { it.isNotBlank() }
+            ?.uppercase()
+        val dimensions = if (width != null && width > 0 && height != null && height > 0) {
+            "${width}×${height}"
+        } else {
+            null
+        }
+        return when {
+            type != null && dimensions != null -> "$type · $dimensions"
+            type != null -> "$type · Best quality"
+            dimensions != null -> "Video · $dimensions"
+            else -> "Best available"
+        }
+    }
 }
+
+/** Collapses backend variants that have the same useful label for a person choosing a download. */
+fun downloadableFormats(formats: List<MediaFormat>): List<MediaFormat> =
+    formats.distinctBy(MediaFormat::displayLabel)
 
 internal fun Any.readNoArg(vararg names: String): Any? = names.firstNotNullOfOrNull { name ->
     runCatching {
@@ -56,5 +72,4 @@ internal fun Any.toMediaFormat(): MediaFormat = MediaFormat(
     audioCodec = readString("getAcodec", "getAudioCodec"),
     filesize = readLong("getFilesize", "getFilesizeApprox"),
     playableUrl = readString("getUrl", "getPlayableUrl"),
-    fallbackLabel = toString().takeIf { it.isNotBlank() },
 )

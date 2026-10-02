@@ -25,7 +25,7 @@ The selected native payload is constrained to `arm64-v8a` and `x86_64`.
 
 ## Validation status
 
-Build and unit/lint validation are recorded in the Phase 3 handoff. The primary download flow has now also been `EMPIRICALLY_TESTED` on a real Android phone; this does not claim validation of every Android API-level fallback or cancellation path.
+The Phase 3 download flow was `EMPIRICALLY_TESTED` on a real Android phone; this does not claim validation of every Android API-level fallback or cancellation path.
 
 ### Physical-device runtime validation
 
@@ -39,7 +39,9 @@ Build and unit/lint validation are recorded in the Phase 3 handoff. The primary 
 - Result was published through Android Downloads/MediaStore.
 - The UI reported `content://media/external/downloads/1000048094`.
 
-The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage. A non-blocking UI defect was observed but intentionally not fixed in this phase: format rows expose Java object strings such as `com.yausername.youtubedl_android.mapper.VideoFormat@...` instead of a polished format label.
+The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage.
+
+The UI refresh on branch `ui/clean-download-screen` hides backend format IDs and raw metadata, collapses formats with identical user-facing labels, and starts downloads directly from each format button. This refresh still requires a build and real-device validation; the validation above applies to the previous UI.
 
 ## Download implementation
 
