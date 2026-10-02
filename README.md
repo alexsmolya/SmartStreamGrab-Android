@@ -12,11 +12,11 @@ The backend dependency remains pinned at `0.18.1` for reproducible builds. Updat
 
 ## Build and run
 
-Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). ABI-specific debug APKs are generated for arm64 phones and x86_64 emulators:
+Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). The debug APK is built for arm64 Android phones only:
 
 ```bash
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.smartstreamgrab.android/.MainActivity
 adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT 'https://vimeo.com/22439234' com.smartstreamgrab.android
 ```
