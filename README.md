@@ -12,16 +12,14 @@ The backend dependency remains pinned at `0.18.1` for reproducible builds. Updat
 
 ## Build and run
 
-Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). From this directory:
+Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). ABI-specific debug APKs are generated for arm64 phones and x86_64 emulators:
 
 ```bash
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 adb shell am start -n com.smartstreamgrab.android/.MainActivity
 adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT 'https://vimeo.com/22439234' com.smartstreamgrab.android
 ```
-
-The selected native payload is constrained to `arm64-v8a` and `x86_64`.
 
 ## Validation status
 
@@ -41,7 +39,7 @@ The Phase 3 download flow was `EMPIRICALLY_TESTED` on a real Android phone; this
 
 The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage.
 
-The UI refresh on branch `ui/clean-download-screen` hides backend format IDs and raw metadata, collapses formats with identical user-facing labels, and starts downloads directly from each format button. This refresh still requires a build and real-device validation; the validation above applies to the previous UI.
+The UI refresh on branch `ui/clean-download-screen` hides backend format IDs and raw metadata, collapses formats with identical user-facing labels, and starts downloads directly from each format button. This refresh still requires real-device validation; the validation above applies to the previous UI.
 
 ## Download implementation
 
