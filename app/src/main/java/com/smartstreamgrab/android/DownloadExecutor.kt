@@ -5,7 +5,9 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import java.io.File
@@ -70,6 +72,8 @@ data class DownloadOutput(
     val location: String,
     val displayName: String,
     val sizeBytes: Long,
+    val mimeType: String = "application/octet-stream",
+    val folderLocation: String = "",
 )
 
 interface DownloadStorage {
@@ -102,6 +106,8 @@ object DownloadFileNaming {
 class AndroidDownloadStorage(
     private val context: Context,
 ) : DownloadStorage {
+    private val fileProviderAuthority = "${context.packageName}.fileprovider"
+
     override fun createTarget(request: DownloadRequest): DownloadTarget {
         val workDirectory = File(context.cacheDir, "smartstream-downloads/${UUID.randomUUID()}")
         check(workDirectory.mkdirs()) { "Could not create temporary download directory" }
@@ -115,6 +121,7 @@ class AndroidDownloadStorage(
 
     override fun publish(target: DownloadTarget): DownloadOutput {
         check(target.file.isFile) { "Download output was not created" }
+        check(target.file.length() > 0L) { "Download output is empty" }
         val output = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             publishToMediaStore(target)
         } else {
@@ -146,7 +153,16 @@ class AndroidDownloadStorage(
             resolver.update(uri, ContentValues().apply {
                 put(MediaStore.Downloads.IS_PENDING, 0)
             }, null, null)
-            return DownloadOutput(uri.toString(), target.displayName, target.file.length())
+            resolver.openFileDescriptor(uri, "r").use { descriptor ->
+                check(descriptor != null) { "Published download cannot be opened" }
+            }
+            return DownloadOutput(
+                location = uri.toString(),
+                displayName = target.displayName,
+                sizeBytes = target.file.length(),
+                mimeType = target.mimeType,
+                folderLocation = downloadsFolderUri(includeAppFolder = true).toString(),
+            )
         } catch (error: Exception) {
             resolver.delete(uri, null, null)
             throw error
@@ -160,7 +176,25 @@ class AndroidDownloadStorage(
         ).also { check(it.mkdirs() || it.isDirectory) }
         val destination = uniqueFile(directory, target.displayName)
         target.file.inputStream().use { input -> destination.outputStream().use { input.copyTo(it) } }
-        return DownloadOutput(destination.toURI().toString(), destination.name, destination.length())
+        check(destination.length() > 0L) { "Published download is empty" }
+        return DownloadOutput(
+            location = FileProvider.getUriForFile(context, fileProviderAuthority, destination).toString(),
+            displayName = destination.name,
+            sizeBytes = destination.length(),
+            mimeType = target.mimeType,
+            folderLocation = downloadsFolderUri(includeAppFolder = false).toString(),
+        )
+    }
+
+    private fun downloadsFolderUri(includeAppFolder: Boolean): Uri {
+        val path = buildString {
+            append(Environment.DIRECTORY_DOWNLOADS)
+            if (includeAppFolder) append("/SmartStreamGrab")
+        }
+        return DocumentsContract.buildDocumentUri(
+            "com.android.externalstorage.documents",
+            "primary:$path",
+        )
     }
 
     private fun uniqueFile(directory: File, name: String): File {

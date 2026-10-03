@@ -1,4 +1,4 @@
-# SmartStreamGrab Android — Phase 3 download executor slice
+# SmartStreamGrab Android — version 0.3.1
 
 This bounded production slice extends `Share → extract → preview` with an explicit typed `preview → selected format → download` path. It accepts `ACTION_SEND` `text/plain` intents and manual URLs, calls `youtubedl-android` through narrow typed boundaries, and writes completed media through Android's Downloads provider on modern Android.
 
@@ -8,24 +8,24 @@ Selected `youtubedl-android:0.18.1`. Its upstream documentation provides a Maven
 
 Rejected for this spike: the current `ffmpegkit-maintained/yt-dlp-android` Chaquopy/AAR integration. Its public documentation is promising and explicitly supports arm64, but it embeds roughly 60–80 MB of CPython, fixes yt-dlp at library build time, and had not been independently build/runtime verified in this workspace. Revisit it later if its packaging and update trade-offs become preferable.
 
-The backend dependency remains pinned at `0.18.1` for reproducible builds. Updating yt-dlp is an intentional dependency/version change, not an implicit runtime mutation. The adapter converts the AAR metadata objects into `MediaPreview` and `MediaFormat`, preserving format id, extension, dimensions, codecs, size, and playable URL when exposed by the backend.
+The backend dependency remains pinned at `0.18.1` for reproducible builds. The app displays the embedded yt-dlp version and exposes a user-triggered update to the stable yt-dlp channel; failed updates leave the current embedded runtime available. The adapter converts the AAR metadata objects into `MediaPreview` and `MediaFormat`, preserving format id, extension, dimensions, codecs, size, and playable URL when exposed by the backend.
+
+Version 0.3.1 keeps only combined video formats in the download list. yt-dlp can expose separate video-only and audio-only streams; this app does not mux them yet, so offering those choices would produce files that many players cannot open. The output is also checked for non-zero size and a readable Android content URI before the download is reported as complete.
 
 ## Build and run
 
-Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). From this directory:
+Requires JDK 17+, Android SDK platform 35/build tools, and Gradle (or an Android Studio import). The tester APK is built for arm64 Android phones only:
 
 ```bash
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:testDebugUnitTest :app:assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 adb shell am start -n com.smartstreamgrab.android/.MainActivity
 adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT 'https://vimeo.com/22439234' com.smartstreamgrab.android
 ```
 
-The selected native payload is constrained to `arm64-v8a` and `x86_64`.
-
 ## Validation status
 
-Build and unit/lint validation are recorded in the Phase 3 handoff. The primary download flow has now also been `EMPIRICALLY_TESTED` on a real Android phone; this does not claim validation of every Android API-level fallback or cancellation path.
+The Phase 3 download flow was `EMPIRICALLY_TESTED` on a real Android phone; this does not claim validation of every Android API-level fallback or cancellation path.
 
 ### Physical-device runtime validation
 
@@ -39,7 +39,11 @@ Build and unit/lint validation are recorded in the Phase 3 handoff. The primary 
 - Result was published through Android Downloads/MediaStore.
 - The UI reported `content://media/external/downloads/1000048094`.
 
-The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage. A non-blocking UI defect was observed but intentionally not fixed in this phase: format rows expose Java object strings such as `com.yausername.youtubedl_android.mapper.VideoFormat@...` instead of a polished format label.
+The following remain `UNVERIFIED`: cancellation against a real process, the API 24–28 storage fallback, and broader device/source coverage.
+
+The UI refresh on branch `ui/clean-download-screen` hides backend format IDs and raw metadata, collapses formats with identical user-facing labels, and starts downloads directly from each format button. This refresh still requires real-device validation; the validation above applies to the previous UI.
+
+Version 0.3.1 adds a clear button to the link field, reduces the preview height and vertical spacing, and keeps `Open video` / `Open folder` in a bottom action bar after a successful download so the actions remain visible on compact phone screens. `Open video` now sends an explicit read grant and `ClipData` together with the MediaStore URI.
 
 ## Download implementation
 

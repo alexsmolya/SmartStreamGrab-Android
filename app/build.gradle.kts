@@ -12,16 +12,21 @@ android {
         applicationId = "com.smartstreamgrab.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
-
+        versionCode = 5
+        versionName = "0.3.1"
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += "arm64-v8a"
         }
     }
 
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            isDebuggable = false
+            // Temporary test-distribution signing. Replace with a preserved release keystore
+            // before publishing outside the trusted tester group.
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {

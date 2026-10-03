@@ -5,3 +5,5 @@ build/
 .idea/
 *.iml
 apk/
+
+distrib/*.apk

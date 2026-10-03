@@ -13,7 +13,7 @@ class DownloadExecutorTest {
     private val request = DownloadRequest(
         sourceUrl = "https://example.test/video",
         media = MediaIdentity("Example video", "Example"),
-        format = MediaFormat("137", "mp4", 1920, 1080, "avc1", "none", null, null),
+        format = MediaFormat("137", "mp4", 1920, 1080, "avc1", "mp4a", null, null),
     )
 
     @Test
